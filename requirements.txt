@@ -1,0 +1,4 @@
+pandas==1.3.3
+akshare==0.9.36
+tqdm==4.62.3
+openpyxl==3.0.9 
