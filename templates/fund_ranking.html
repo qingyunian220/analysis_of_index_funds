@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>基金C份额收益率排名</title>
+  <link rel="stylesheet" href="/static/layui-v2.11.6/layui/css/layui.css">
+  <style>
+    /* 自定义样式，使页面适应不同屏幕尺寸 */
+    .layui-container {
+      width: 100%;
+      padding: 0 15px;
+      box-sizing: border-box;
+    }
+    
+    /* 表格自适应样式 */
+    .layui-table-container {
+      overflow-x: auto;
+    }
+    
+    /* 在小屏幕上调整列宽 */
+    @media screen and (max-width: 1200px) {
+      .layui-table th, .layui-table td {
+        font-size: 12px;
+        padding: 9px 5px;
+      }
+    }
+    
+    @media screen and (max-width: 992px) {
+      .layui-table th, .layui-table td {
+        padding: 9px 3px;
+      }
+    }
+    
+    /* 近1年前十名基金标色 */
+    .top-10 {
+      background-color: #ffeb3b !important;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="layui-container">
+    <h1 style="text-align: center; margin: 20px 0;">指数增强收益率排名</h1>
+    
+    <div class="layui-tabs" lay-filter="fundTabs">
+      <ul class="layui-tabs-header">
+        <li class="layui-this" lay-id="hs300">沪深300基金</li>
+        <li lay-id="zz500">中证500基金</li>
+        <li lay-id="zz1000">中证1000基金</li>
+        <li lay-id="zz2000">中证2000基金</li>
+        <li lay-id="gz2000">国证2000基金</li>
+      </ul>
+      <div class="layui-tabs-body">
+        <div class="layui-tabs-item layui-show">
+          <table class="layui-table" id="hs300Table" lay-filter="hs300Table"></table>
+        </div>
+        <div class="layui-tabs-item">
+          <table class="layui-table" id="zz500Table" lay-filter="zz500Table"></table>
+        </div>
+        <div class="layui-tabs-item">
+          <table class="layui-table" id="zz1000Table" lay-filter="zz1000Table"></table>
+        </div>
+        <div class="layui-tabs-item">
+          <table class="layui-table" id="zz2000Table" lay-filter="zz2000Table"></table>
+        </div>
+        <div class="layui-tabs-item">
+          <table class="layui-table" id="gz2000Table" lay-filter="gz2000Table"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/layui-v2.11.6/layui/layui.js"></script>
+  <script>
+  layui.use(function(){
+    var $ = layui.$;
+    var table = layui.table;
+    var tabs = layui.tabs;
+    
+    // 标记多个时间段排名前十的基金
+    function highlightTop10(res, currTableId) {
+      // 确保数据存在
+      if (!res || !res.data || res.data.length === 0) return;
+      
+      // 定义需要检查的时间段
+      var periods = ['近1年','今年来', '近6月', '近3月', '近1月'];
+      
+      // 为每个时间段计算排名前十的基金代码
+      var top10CodesByPeriod = {};
+      periods.forEach(function(period) {
+        // 按当前时间段收益率排序（从高到低）
+        var sortedData = res.data.slice().sort(function(a, b) {
+          var aVal = parseFloat(a[period]) || -Infinity;
+          var bVal = parseFloat(b[period]) || -Infinity;
+          return bVal - aVal;
+        });
+        
+        // 获取前10名基金代码
+        top10CodesByPeriod[period] = [];
+        for (var i = 0; i < Math.min(10, sortedData.length); i++) {
+          top10CodesByPeriod[period].push(sortedData[i]['基金代码']);
+        }
+      });
+      
+      // 找出在所有四个时间段都排名前十的基金代码
+      var consistentlyTop10Codes = [];
+      res.data.forEach(function(fund) {
+        var fundCode = fund['基金代码'];
+        var isInAllTop10 = periods.every(function(period) {
+          return top10CodesByPeriod[period].includes(fundCode);
+        });
+        
+        if (isInAllTop10) {
+          consistentlyTop10Codes.push(fundCode);
+        }
+      });
+      
+      // 通过LAYUI的表格重载实现标色
+      setTimeout(function() {
+        // 查找表格中的每一行，使用LAYUI表格的实际结构
+        $('#'+currTableId).next('.layui-table-view').find('.layui-table-body tbody tr').each(function() {
+          var $row = $(this);
+          // 获取该行第一个单元格（基金代码）
+          var fundCode = $row.find('td').eq(0).text().trim();
+          
+          // 如果基金代码在所有四个时间段都排名前十，则添加标色样式
+          if (consistentlyTop10Codes.includes(fundCode)) {
+            $row.find('td').addClass('top-10');
+          }
+        });
+      }, 100);
+    }
+    
+    // 为所有表格注册排序事件监听器
+    function registerSortListener(tableId) {
+      // 使用Layui的事件监听机制，监听表格排序事件
+      layui.table.on('sort(' + tableId + ')', function(obj){
+        // 等待排序完成后再重新应用标色
+        setTimeout(function() {
+          // 重新获取当前表格数据
+          var tableData = layui.table.cache[tableId];
+          if (tableData) {
+            var mockRes = {data: tableData};
+            highlightTop10(mockRes, tableId);
+          }
+        }, 200);
+      });
+    }
+    
+    // 沪深300基金表格
+    table.render({
+      elem: '#hs300Table',
+      url: '/get_fund_data?sheet=沪深300基金',
+      page: true,
+      limit: 100,
+      limits: [100,200],
+      request: {
+        pageName: 'page',
+        limitName: 'limit'
+      },
+      response: {
+        statusCode: 0
+      },
+      cols: [[
+        {field: '基金代码', title: '基金代码', width: 100, align: 'center'},
+        {field: '基金简称', title: '基金简称', width: 190, align: 'center'},
+        {field: '日期', title: '日期', width: 110, align: 'center'},
+        {field: '近1周', title: '近1周', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1周'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1月', title: '近1月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3月', title: '近3月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近6月', title: '近6月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近6月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1年', title: '近1年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近2年', title: '近2年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近2年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3年', title: '近3年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '今年来', title: '今年来', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['今年来'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '成立时间', title: '成立时间', width: 110, align: 'center'},
+        {field: '最新规模', title: '最新规模', width: 100, align: 'center'}
+      ]],
+      done: function(res, curr, count){
+        console.log('沪深300基金数据加载完成:', res);
+        // 标记在多个时间段都排名前十的基金
+        highlightTop10(res, 'hs300Table');
+        // 注册排序监听器
+        registerSortListener('hs300Table');
+      },
+      error: function(xhr, type, errorThrown){
+        console.error('沪深300基金数据加载失败:', xhr, type, errorThrown);
+        console.log('响应内容:', xhr.responseText);
+      }
+    });
+    
+    // 中证500基金表格
+    table.render({
+      elem: '#zz500Table',
+      url: '/get_fund_data?sheet=中证500基金',
+      page: true,
+      limit: 100,
+      limits: [100,200],
+      request: {
+        pageName: 'page',
+        limitName: 'limit'
+      },
+      response: {
+        statusCode: 0
+      },
+      cols: [[
+        {field: '基金代码', title: '基金代码', width: 100, align: 'center'},
+        {field: '基金简称', title: '基金简称', width: 190, align: 'center'},
+        {field: '日期', title: '日期', width: 110, align: 'center'},
+        {field: '近1周', title: '近1周', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1周'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1月', title: '近1月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3月', title: '近3月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近6月', title: '近6月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近6月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1年', title: '近1年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近2年', title: '近2年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近2年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3年', title: '近3年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '今年来', title: '今年来', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['今年来'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '成立时间', title: '成立时间', width: 110, align: 'center'},
+        {field: '最新规模', title: '最新规模', width: 100, align: 'center'}
+      ]],
+      done: function(res, curr, count){
+        console.log('中证500基金数据加载完成:', res);
+        // 标记在多个时间段都排名前十的基金
+        highlightTop10(res, 'zz500Table');
+        // 注册排序监听器
+        registerSortListener('zz500Table');
+      },
+      error: function(xhr, type, errorThrown){
+        console.error('中证500基金数据加载失败:', xhr, type, errorThrown);
+        console.log('响应内容:', xhr.responseText);
+      }
+    });
+    
+    // 中证1000基金表格
+    table.render({
+      elem: '#zz1000Table',
+      url: '/get_fund_data?sheet=中证1000基金',
+      page: true,
+      limit: 100,
+      limits: [100,200],
+      request: {
+        pageName: 'page',
+        limitName: 'limit'
+      },
+      response: {
+        statusCode: 0
+      },
+      cols: [[
+        {field: '基金代码', title: '基金代码', width: 100, align: 'center'},
+        {field: '基金简称', title: '基金简称', width: 190, align: 'center'},
+        {field: '日期', title: '日期', width: 110, align: 'center'},
+        {field: '近1周', title: '近1周', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1周'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1月', title: '近1月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3月', title: '近3月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近6月', title: '近6月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近6月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1年', title: '近1年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近2年', title: '近2年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近2年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3年', title: '近3年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '今年来', title: '今年来', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['今年来'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '成立时间', title: '成立时间', width: 110, align: 'center'},
+        {field: '最新规模', title: '最新规模', width: 100, align: 'center'}
+      ]],
+      done: function(res, curr, count){
+        console.log('中证1000基金数据加载完成:', res);
+        // 标记在多个时间段都排名前十的基金
+        highlightTop10(res, 'zz1000Table');
+        // 注册排序监听器
+        registerSortListener('zz1000Table');
+      },
+      error: function(xhr, type, errorThrown){
+        console.error('中证1000基金数据加载失败:', xhr, type, errorThrown);
+        console.log('响应内容:', xhr.responseText);
+      }
+    });
+    
+    // 中证2000基金表格
+    table.render({
+      elem: '#zz2000Table',
+      url: '/get_fund_data?sheet=中证2000基金',
+      page: true,
+      limit: 100,
+      limits: [100,200],
+      request: {
+        pageName: 'page',
+        limitName: 'limit'
+      },
+      response: {
+        statusCode: 0
+      },
+      cols: [[
+        {field: '基金代码', title: '基金代码', width: 100, align: 'center'},
+        {field: '基金简称', title: '基金简称', width: 190, align: 'center'},
+        {field: '日期', title: '日期', width: 110, align: 'center'},
+        {field: '近1周', title: '近1周', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1周'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1月', title: '近1月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3月', title: '近3月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近6月', title: '近6月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近6月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1年', title: '近1年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近2年', title: '近2年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近2年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3年', title: '近3年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '今年来', title: '今年来', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['今年来'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '成立时间', title: '成立时间', width: 110, align: 'center'},
+        {field: '最新规模', title: '最新规模', width: 100, align: 'center'}
+      ]],
+      done: function(res, curr, count){
+        console.log('中证2000基金数据加载完成:', res);
+        // 标记在多个时间段都排名前十的基金
+        highlightTop10(res, 'zz2000Table');
+        // 注册排序监听器
+        registerSortListener('zz2000Table');
+      },
+      error: function(xhr, type, errorThrown){
+        console.error('中证2000基金数据加载失败:', xhr, type, errorThrown);
+        console.log('响应内容:', xhr.responseText);
+      }
+    });
+    
+    // 国证2000基金表格
+    table.render({
+      elem: '#gz2000Table',
+      url: '/get_fund_data?sheet=国证2000基金',
+      page: true,
+      limit: 100,
+      limits: [100,200],
+      request: {
+        pageName: 'page',
+        limitName: 'limit'
+      },
+      response: {
+        statusCode: 0
+      },
+      cols: [[
+        {field: '基金代码', title: '基金代码', width: 100, align: 'center'},
+        {field: '基金简称', title: '基金简称', width: 190, align: 'center'},
+        {field: '日期', title: '日期', width: 110, align: 'center'},
+        {field: '近1周', title: '近1周', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1周'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1月', title: '近1月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3月', title: '近3月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近6月', title: '近6月', width: 105, sort: true, align: 'center', templet: function(d) {
+          var value = d['近6月'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近1年', title: '近1年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近1年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近2年', title: '近2年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近2年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '近3年', title: '近3年', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['近3年'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '今年来', title: '今年来', width: 110, sort: true, align: 'center', templet: function(d) {
+          var value = d['今年来'];
+          if (value === null || value === undefined || value === '') {
+            return '';
+          }
+          // 显示时添加百分号，但不影响排序
+          return value + '%';
+        }},
+        {field: '成立时间', title: '成立时间', width: 110, align: 'center'},
+        {field: '最新规模', title: '最新规模', width: 100, align: 'center'}
+      ]],
+      done: function(res, curr, count){
+        console.log('国证2000基金数据加载完成:', res);
+        // 标记在多个时间段都排名前十的基金
+        highlightTop10(res, 'gz2000Table');
+        // 注册排序监听器
+        registerSortListener('gz2000Table');
+      },
+      error: function(xhr, type, errorThrown){
+        console.error('国证2000基金数据加载失败:', xhr, type, errorThrown);
+        console.log('响应内容:', xhr.responseText);
+      }
+    });
+    
+    // 初始化 tabs
+    tabs.render();
+  });
+  </script>
+</body>
+</html>
