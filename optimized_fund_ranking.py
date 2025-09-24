@@ -6,13 +6,13 @@ from tqdm import tqdm
 # 获取所有基金基础信息
 fund_open_fund_rank_em_df = ak.fund_open_fund_rank_em(symbol="全部")
 
-return_columns = ['近1月', '近3月', '近6月', '近1年', '今年来']
+return_columns = ['近1周','近1月', '近3月', '近6月', '近1年', '今年来']
 
 def fetch_fund_data(fund_name):
     fund_df = fund_open_fund_rank_em_df[fund_open_fund_rank_em_df["基金简称"].str.contains(fund_name, na=False)]
     fund_df = fund_df[fund_df["基金简称"].str.contains("C", na=False)]
     
-    exclude_keywords = ["红利", "基本面", "价值", "非银", "成长", "低波动"]
+    exclude_keywords = ["红利", "基本面", "价值", "非银", "成长", "低波动","信息技术","周期","非周期","地产"]
     for keyword in tqdm(exclude_keywords):
         fund_df = fund_df[~fund_df["基金简称"].str.contains(keyword, na=False)]
     
@@ -55,7 +55,7 @@ def highlight_top_50_all_columns(df):
     
     # 对至少有4列进入前10的基金，将基金简称设置为金黄色背景
     for idx, count in top_count.items():
-        if count >= 4:  # 至少有4列进入前10
+        if count >= 5:  # 至少有4列进入前10
             # 标注基金简称为金黄色
             styles.loc[idx, '基金简称'] = 'background-color: gold'
     
@@ -67,8 +67,9 @@ def save_to_excel(writer, fund_df, sheet_name):
         styled_df.to_excel(writer, sheet_name=sheet_name, index=False)
 
 # 创建一个ExcelWriter对象
-with pd.ExcelWriter('所有基金C份额收益率排名.xlsx', engine='openpyxl') as writer:
-    fund_types = ["沪深300", "中证500", "中证1000", "中证2000"]
+filename = f'所有基金C份额收益率排名_{time.strftime("%Y%m%d_%H%M%S")}.xlsx'
+with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+    fund_types = ["沪深300", "中证500", "中证1000", "中证2000","国证2000"]
     for fund_type in fund_types:
         fund_df = fetch_fund_data(fund_type)
         save_to_excel(writer, fund_df, f'{fund_type}基金')
@@ -88,4 +89,4 @@ with pd.ExcelWriter('所有基金C份额收益率排名.xlsx', engine='openpyxl'
             adjusted_width = (max_length + 2)
             worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
 
-print("已将所有C份额基金的排序结果保存为'所有基金C份额收益率排名.xlsx'，每个时间段的前10名标黄，至少有4个时间段进入前10的基金其简称标金黄色。") 
+print(f"已将所有C份额基金的排序结果保存为'{filename}'，每个时间段的前10名标黄，至少有4个时间段进入前10的基金其简称标金黄色。") 
