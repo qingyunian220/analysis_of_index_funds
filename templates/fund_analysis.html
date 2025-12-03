@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指数基金筛选分析结果</title>
+    <link rel="stylesheet" href="/static/layui-v2.11.6/layui/css/layui.css">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding: 10px;
+            font-family: "微软雅黑", Arial, sans-serif;
+        }
+        .layui-container {
+            max-width: 100%;
+            padding: 0;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .criteria-list {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .criteria-item {
+            background-color: #1E9FFF;
+            color: white;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            margin: 5px;
+            flex: 1;
+            min-width: 150px;
+            max-width: 300px;
+            font-size: 14px;
+        }
+        .fund-table-container {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .fund-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .fund-table th, .fund-table td {
+            border: 1px solid #e6e6e6;
+            padding: 8px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .fund-table th {
+            background-color: #f8f8f8;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+        }
+        .fund-table tr:hover {
+            background-color: #f9f9f9;
+        }
+        .high-score {
+            color: #ff5722;
+            font-weight: bold;
+        }
+        .medium-score {
+            color: #4caf50;
+            font-weight: bold;
+        }
+        .low-score {
+            color: #999;
+            font-weight: bold;
+        }
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .fund-name {
+            font-weight: bold;
+            color: #1E9FFF;
+        }
+        .index-type-header {
+            background-color: #5FB878;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 15px 0 10px 0;
+            display: inline-block;
+        }
+        .scoring-explanation {
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .scoring-explanation li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="layui-container">
+        <div class="header">
+            <h1 style="font-size: 24px;">指数基金筛选分析结果</h1>
+            <p>基于超额收益和风险控制的基金筛选系统</p>
+        </div>
+
+        <div class="card">
+            <h2 style="font-size: 18px;">筛选条件</h2>
+            <div class="criteria-list">
+                <div class="criteria-item">
+                    <h3 style="font-size: 16px;">规模控制</h3>
+                    <p>最新规模 &lt; 40亿</p>
+                </div>
+                <div class="criteria-item">
+                    <h3 style="font-size: 16px;">活跃度要求</h3>
+                    <p>换手率 &gt; 200%</p>
+                </div>
+                <div class="criteria-item">
+                    <h3 style="font-size: 16px;">风险分散</h3>
+                    <p>前10大重仓股占比 &lt; 40%</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <h2 style="font-size: 18px;">分析概要</h2>
+            <p style="font-size: 14px;">本次分析共处理了8个指数类型的基金数据，筛选出满足条件的优质基金。</p>
+            <p style="font-size: 14px;">评分系统采用10分制，综合考虑了近期超额收益表现和风险因素，对负超额收益施加了额外惩罚。</p>
+        </div>
+
+        <div class="card">
+            <h2 style="font-size: 18px;">筛选结果</h2>
+            <div id="fundResults">
+                <!-- 数据将通过JavaScript动态加载并按指数类型分组 -->
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="font-size: 18px;">评分说明</h2>
+            <ul class="scoring-explanation">
+                <li><strong>10分制评分：</strong>便于直观比较不同基金的表现</li>
+                <li><strong>时间加权：</strong>近期表现权重更高（近1月30%、近3月25%、近6月25%、近1年20%）</li>
+                <li><strong>负值惩罚：</strong>对负超额收益施加额外惩罚，鼓励稳定正收益</li>
+                <li><strong>线性映射：</strong>将原始得分映射到0-10分区间</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="/static/layui-v2.11.6/layui/layui.js"></script>
+    <script>
+        // 从服务器获取基金数据
+        function loadFundData() {
+            fetch('/api/funds')
+                .then(response => response.json())
+                .then(data => {
+                    renderFundTables(data);
+                })
+                .catch(error => {
+                    console.error('获取基金数据失败:', error);
+                });
+        }
+
+        function renderFundTables(fundsData) {
+            const container = document.getElementById('fundResults');
+            container.innerHTML = '';
+            
+            if (!fundsData || fundsData.length === 0) {
+                container.innerHTML = '<p>暂无数据</p>';
+                return;
+            }
+            
+            // 按指数类型分组，并在分组内按综合得分排序
+            const groupedData = {};
+            fundsData.forEach(fund => {
+                if (!groupedData[fund.index_type]) {
+                    groupedData[fund.index_type] = [];
+                }
+                groupedData[fund.index_type].push(fund);
+            });
+            
+            // 对每个分组内的基金按综合得分降序排序
+            for (const indexType in groupedData) {
+                groupedData[indexType].sort((a, b) => b.score - a.score);
+            }
+            
+            // 为每个指数类型创建表格
+            for (const indexType in groupedData) {
+                const section = document.createElement('div');
+                
+                // 添加指数类型标题
+                const header = document.createElement('div');
+                header.className = 'index-type-header';
+                header.textContent = indexType;
+                section.appendChild(header);
+                
+                // 创建表格
+                const tableContainer = document.createElement('div');
+                tableContainer.className = 'fund-table-container';
+                
+                const table = document.createElement('table');
+                table.className = 'fund-table';
+                
+                // 表头
+                const thead = document.createElement('thead');
+                thead.innerHTML = `
+                    <tr>
+                        <th>排名</th>
+                        <th>基金名称</th>
+                        <th>基金代码</th>
+                        <th>规模</th>
+                        <th>换手率</th>
+                        <th>重仓股占比</th>
+                        <th>近1月超额</th>
+                        <th>近3月超额</th>
+                        <th>近6月超额</th>
+                        <th>近1年超额</th>
+                        <th>综合得分</th>
+                    </tr>
+                `;
+                table.appendChild(thead);
+                
+                // 表体
+                const tbody = document.createElement('tbody');
+                groupedData[indexType].forEach((fund, index) => {
+                    const row = document.createElement('tr');
+                    
+                    // 根据得分设置样式
+                    let scoreClass = 'low-score';
+                    if (fund.score >= 6) {
+                        scoreClass = 'high-score';
+                    } else if (fund.score >= 4) {
+                        scoreClass = 'medium-score';
+                    }
+                    
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td class="fund-name">${fund.fund_name}</td>
+                        <td>${fund.fund_code}</td>
+                        <td>${fund.scale}</td>
+                        <td>${fund.turnover}</td>
+                        <td>${fund.concentration}</td>
+                        <td>${fund.return_1m.toFixed(2)}%</td>
+                        <td>${fund.return_3m.toFixed(2)}%</td>
+                        <td>${fund.return_6m.toFixed(2)}%</td>
+                        <td>${fund.return_1y.toFixed(2)}%</td>
+                        <td class="${scoreClass}">${fund.score}/10</td>
+                    `;
+                    
+                    tbody.appendChild(row);
+                });
+                
+                table.appendChild(tbody);
+                tableContainer.appendChild(table);
+                section.appendChild(tableContainer);
+                container.appendChild(section);
+            }
+        }
+
+        // 页面加载完成后渲染表格
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFundData();
+        });
+    </script>
+</body>
+</html>

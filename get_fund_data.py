@@ -8,7 +8,7 @@ app = Flask(__name__)
 app.config['JSON_AS_ASCII'] = False
 
 # 设置Excel文件路径
-EXCEL_FILE = '基金C份额收益率排名_20250924.xlsx'
+EXCEL_FILE = 'index-fund.xlsx'
 
 @app.route('/')
 def index():
