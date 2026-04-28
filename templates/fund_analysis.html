@@ -113,6 +113,7 @@
         <div class="header">
             <h1 style="font-size: 24px;">指数基金筛选分析结果</h1>
             <p>基于超额收益和风险控制的基金筛选系统</p>
+            <p id="currentDate" style="font-size: 14px; color: #666; margin-top: 5px;"></p>
         </div>
 
         <div class="card">
@@ -270,7 +271,18 @@
         // 页面加载完成后渲染表格
         document.addEventListener('DOMContentLoaded', function() {
             loadFundData();
+            displayCurrentDate();
         });
+
+        // 显示当前日期
+        function displayCurrentDate() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const dateStr = `${year}年${month}月${day}日`;
+            document.getElementById('currentDate').textContent = `数据日期：${dateStr}`;
+        }
     </script>
 </body>
 </html>
