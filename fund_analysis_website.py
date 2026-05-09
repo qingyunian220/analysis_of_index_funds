@@ -8,6 +8,7 @@ import time
 import asyncio
 from playwright.async_api import async_playwright
 import argparse
+from datetime import datetime
 
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -144,21 +145,27 @@ async def capture_website_screenshot():
         # 等待页面加载完成
         await page.wait_for_timeout(5000)
 
+        # 生成带时间的文件名
+        now = datetime.now()
+        timestamp = f"{now.year}年{now.month}月{now.day}日"
+        png_filename = f'指数增强基金周报_{timestamp}.png'
+        pdf_filename = f'指数增强基金周报_{timestamp}.pdf'
+        
         # 截取整个页面的 PNG 截图
         print("正在截取 PNG 截图...")
-        await page.screenshot(path='fund_analysis_screenshot.png', full_page=True)
-        print("PNG 截图已保存为 fund_analysis_screenshot.png")
+        await page.screenshot(path=png_filename, full_page=True)
+        print(f"PNG 截图已保存为 {png_filename}")
 
         # 生成 PDF 报告（横向页面，更大尺寸）
         print("正在生成 PDF 报告...")
         await page.pdf(
-            path='fund_analysis_report.pdf',
+            path=pdf_filename,
             format='A4',
             print_background=True,
             landscape=True,  # 横向页面
             margin={"top": "1cm", "bottom": "1cm", "left": "1cm", "right": "1cm"}
         )
-        print("PDF 报告已保存为 fund_analysis_report.pdf")
+        print(f"PDF 报告已保存为 {pdf_filename}")
 
         await browser.close()
 
@@ -214,11 +221,13 @@ def generate_report_auto():
 
     try:
         asyncio.run(capture_website_screenshot())
+        now = datetime.now()
+        timestamp = f"{now.year}年{now.month}月{now.day}日"
         print("=" * 60)
         print("报告生成完成!")
         print("输出文件:")
-        print("  - fund_analysis_screenshot.png (网页截图)")
-        print("  - fund_analysis_report.pdf (PDF 报告)")
+        print(f"  - 指数增强基金周报_{timestamp}.png (网页截图)")
+        print(f"  - 指数增强基金周报_{timestamp}.pdf (PDF 报告)")
         print("=" * 60)
     except Exception as e:
         print(f"生成报告时出错：{e}")
